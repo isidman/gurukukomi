@@ -185,32 +185,3 @@ class GRKKMAI:
         return random.choice(introductions)
 
 
-# Enhanced test to show off the FAQ features
-if __name__ == "__main__":
-    print("🧪 Testing Gurukukomi AI Brain with FAQ...")
-
-    # Create the AI
-    ai = GRKKMAI()
-
-    # Test FAQ responses
-    faq_tests = [
-        "What is Gurukukomi?",
-        "Where are you inspired from?",
-        "How can you help me?",
-        "How do I use you?",
-        "Hello!",
-        "I'm learning Python programming"
-    ]
-
-    print("\n🤖 Testing FAQ and regular responses:")
-    for message in faq_tests:
-        response = ai.think(message)
-        print(f"👤 User: {message}")
-        print(f"🤖 Gurukukomi: {response}")
-        print()
-
-    # Show self-introduction
-    print("🎭 Self-introduction:")
-    print(ai.introduce_self())
-
-    print(f"\n✅ Test complete! Had {ai.get_conversation_count()} conversations.")
