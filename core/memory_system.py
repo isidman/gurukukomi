@@ -47,7 +47,7 @@ class GRKKMAI_MEMORY:
         #Memory consent table
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS concent_log (
+            CREATE TABLE IF NOT EXISTS consent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT NOT NULL,
             memory_description TEXT,
@@ -115,3 +115,116 @@ class GRKKMAI_MEMORY:
                      """, (memory_key, memory_value, memory_type, consent))
         conn.commit()
         conn.close()
+    
+    def _log_consent_request(self, memory_key: str, memory_value: str, memory_type: str):
+        """Remembering the times (?) GRKKMAI asked for consent"""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("""
+                     INSERT INTO consent_log (action, memory_description)
+                     VALUES (?, ?)
+                     """, ("consent_requested", f"{memory_type}: {memory_key} = {memory_value}"))
+        conn.commit()
+        conn.close()
+
+    def _log_consent_response(self, memory_key: str, response_type: str, user_response: str):
+        """Log user's yes or no"""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("""
+            INSERT INTO consent_log (action, memory_description, user_response)
+            VALUES (?, ?, ?)
+            """, (f"consent_{response_type}", memory_key, user_response))
+        conn.commit()
+        conn.close()
+
+    def get_explicit_memories(self) -> List[Dict]:
+        """Get all memories user explicitly consented to"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute("""
+            SELECT memory_key, memory_value, memory_type, timestamp
+            FROM explicit_memories
+            WHERE user_consent = 1
+            ORDER BY timestamp DESC
+            """)
+        
+        memories = []
+        for row in cursor.fetchall():
+            memories.append({
+                "key": row[0],
+                "value": row[1],
+                "type": row[2],
+                "timestamp": row[3]
+                })
+            
+        conn.close()
+        return memories
+        
+    def find_memory(self, search_term: str) -> Optional[Dict]:
+        """Key or value memory search"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute("""
+            SELECT memory_key, memory_value, memory_type, timestamp
+            FROM explicit_memories
+            WHERE (memory_key LIKE ? OR memory_value LIKE ?) AND user_consent = 1
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (f"%{search_term}%", f"%{search_term}%"))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row is None:
+            return None
+
+        if row:
+            return {
+                "key": row[0],
+                "value": row[1],
+                "type": row[2],
+                "timestamp": row[3]
+            }
+        
+    
+    def forget_memory(self, memory_key: str) ->  bool:
+        """Forget the things the user wants"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute("""
+            DELETE FROM explicit_memories
+            WHERE memory_key LIKE ?              
+        """, (f"%{memory_key}%",))
+
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+
+        if deleted:
+            self._log_consent_response(memory_key, "forgotten", "user_requested_deletion")
+        return deleted
+    
+    def get_memory_stats(self) -> Dict:
+        """Get statistics about stored memories"""
+        conn = sqlite3.connect(self.db_path)
+
+        cursor = conn.execute("SELECT COUNT(*) FROM explicit_memories WHERE user_consent = 1")
+        memory_count = cursor.fetchone()[0]
+
+        cursor = conn.execute("SELECT COUNT(*) FROM consent_log WHERE date(timestamp) = date('now')")
+        conversation_count = cursor.fetchone()[0]
+
+        cursor = conn.execute("SELECT COUNT(*) FROM consent_log WHERE action = 'consent_requested'")
+        consent_requests = cursor.fetchone()[0]
+
+        conn.close()
+
+        return {
+            "memories_stored": memory_count,
+            "conversations_today": conversation_count,
+            "consent_requests_made": consent_requests
+        }
+
+    def clear_session_data(self):
+        """Erase non-permanent conversation data"""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("DELETE FROM conversations")
+        conn.commit()
+        conn.close()
+        print("🧹 Session conversation data cleared (explicit memories preserved)")
