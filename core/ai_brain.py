@@ -4,12 +4,14 @@ Gurukukomi Brain
 
 import random
 import json
+from core.personality import GRKKMAIPersonality
 from datetime import datetime
 
 class GRKKMAI:
     def __init__(self):
         print("Gurukukomi start-up!")
 
+        self.personality = GRKKMAIPersonality()
         self.curiosity = 0.5 # How curious is GRKKM
         self.playfulness = 0.7 # Excitement dial
         self.loyalty = 0.5 # "Care" factor

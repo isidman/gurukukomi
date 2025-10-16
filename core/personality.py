@@ -16,7 +16,7 @@ class PersonalityTrait:
     influences: List[str]
 
 class GRKKMAIPersonality:
-    def __init__(self, config_file: str = "data/personality_config.json")
+    def __init__(self, config_file: str = "data/personality_config.json"):
         """GRKKMAI Personality system Initialization"""
         self.config_file = config_file
         self.traits = {}
@@ -26,9 +26,9 @@ class GRKKMAIPersonality:
         self.conversation_history = []
         self.personality_events = []
     
-    # Load initial personality
-    self.load_personality()
-    print("GRKKMAI P-ENGINE STARTED!")
+        # Load initial personality
+        self.load_personality()
+        print("GRKKMAI P-ENGINE STARTED!")
 
     def load_personality(self):
         """Load personality from config or create default Tachikoma-like traits"""
@@ -119,10 +119,10 @@ class GRKKMAIPersonality:
 
         # Current mood factors 
         self.mood_factors = {
-            "current_energy":0.7,
-            "curisoity_satisfaction": 0.6,
-            "social_fulfillment": 0.7,
-            "learning_excitement": 0.8
+            "current_energy":0.8,
+            "curiosity_satisfaction": 0.5,
+            "social_fulfillment": 0.6,
+            "learning_excitement": 0.7
         }
     
     def _load_from_config(self, config: Dict):
@@ -162,15 +162,15 @@ class GRKKMAIPersonality:
             evolution_occured |= self._evolve_trait("entusiasm", 0.015, context)
         
         elif interaction_type == "helped_user":
-            evolution_occured |= self.evolve_trait("loyalty", 0.01, context)
-            evolution_occured |= self.evolve_trait("empathy", 0.015, context)
+            evolution_occured |= self._evolve_trait("loyalty", 0.01, context)
+            evolution_occured |= self._evolve_trait("empathy", 0.015, context)
         
         elif interaction_type == "playful_conversation":
-            evolution_occured |= self.evolve_trait("playfulness", 0.01, context)
-            evolution_occured |= self.evolve_trait("enthusiasm", 0.01, context)
+            evolution_occured |= self._evolve_trait("playfulness", 0.01, context)
+            evolution_occured |= self._evolve_trait("enthusiasm", 0.01, context)
 
         elif interaction_type == "philosophical_discussion":
-            evolution_occured |= self.evolve_trait("independence", 0.02, context)
+            evolution_occured |= self._evolve_trait("independence", 0.02, context)
             self.speech_patterns["philosophical_tendency"] = min(1.0,
                 self.speech_patterns["philosophical_tendency"] + 0.02)
             
@@ -272,7 +272,7 @@ class GRKKMAIPersonality:
                 modified_response += random.choice(empathy_additions)
 
 
-        reurn modified_response
+        return modified_response
 
     def get_current_mood_description(self) -> str:
         """Get a description of current mood/state"""
@@ -281,5 +281,36 @@ class GRKKMAIPersonality:
         social = self.mood_factors["social_fulfillment"]
         learning = self.mood_factors["learning_excitement"]
 
-        if energy > 0.8 and learning > 0.7
-
+        if energy > 0.8 and learning > 0.7:
+            return "incredibly excited and energetic about learning!"
+        elif curiosity > 0.8:
+            return "deeply curious and full of questions!"
+        elif social > 0.8:
+            return "happy and social, loving our conversation!"
+        elif energy < 0.3:
+            return "a bit low on energy but still interested in chatting."
+        else:
+            return "curious and ready to explore new ideas!"
+        
+    def get_personality_summary(self) -> Dict:
+        """Get current personality state summary"""
+        return {
+            "traits": {name: trait.value for name,trait in self.traits.items()},
+            "dominant_traits": self._get_dominant_traits(),
+            "mood": self.get_current_mood_description(),
+            "evolution_events": len(self.personality_events),
+            "last_evolution": self.personality_events[-1]["timestamp"] if self.personality_events
+            else "Never"
+        }
+    
+    def _get_dominant_traits(self) -> List[str]:
+        """Get the most prominent traits"""
+        sorted_traits = sorted(self.traits.items(), key=lambda x: x[1].value, reverse=True)
+        return [trait[0] for trait in sorted_traits[:3]]
+    
+    def reset_personality(self):
+        """Reset personality to initial defaults"""
+        self._create_default_personality()
+        self.personality_events = []
+        self.save_personality()
+        print("Personality was reset. Initial defaults applied.")
