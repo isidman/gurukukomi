@@ -211,12 +211,13 @@ class GRKKMCLI:
         print("-"*30)
 
 def main():
+    print("DEBUG: Starting GRKKMAI CLI")
     try:
         cli = GRKKMCLI()
         cli.start_chat()
     except Exception as e:
         print(f" Failed to start Gurukukomi: {e}")
         print("Make sure all core modules are properly set up!")
+if __name__ == "__main__":
 
-    if __name__ == "__main__":
-        main()
+    main()
