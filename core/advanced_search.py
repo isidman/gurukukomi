@@ -375,29 +375,3 @@ class GRKKMAI_Search:
                 source_info = f"{source.get('title', '')} - {source.get('url', '')}"
                 if source_info not in self.fact_database[concept]["sources"]:
                     self.fact_database[concept]["sources"].append(source_info)
-
-# Test the advanced AI system
-if __name__ == "__main__":
-    print("🧪 Testing Gurukukomi Advanced AI...")
-
-    # Create advanced AI
-    ai = GRKKMAI_Search()
-
-    # Test questions
-    test_questions = [
-        "What is Python programming?",
-        "Explain machine learning",
-        "Hello, how are you?",
-        "Latest news about AI development"
-    ]
-
-    for question in test_questions:
-        print(f"\n{'='*50}")
-        print(f"Question: {question}")
-        print("="*50)
-
-        response = ai.process_query(question)
-        print(response)
-        print("\n" + "-"*50)
-
-    print("\n✅ Advanced AI system test complete!")

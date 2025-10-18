@@ -261,22 +261,3 @@ if __name__ == "__main__":
             "Python is widely used for web development and data science"
         ]
     }
-
-    # Test consent question
-    consent_q = memory.ask_to_save_search("What is Python", test_search_results, "Python programming")
-    print("\n🤔 Consent Question:")
-    print(consent_q)
-
-    # Test positive consent
-    response = memory.process_save_consent("yes save it", "What is Python", test_search_results, "Python programming")
-    print(f"\n✅ Response: {response}")
-
-    # Test finding saved research
-    saved = memory.find_saved_research("Python")
-    print(f"\n🔍 Found saved research: {saved['topic'] if saved else 'None'}")
-
-    # Test stats
-    stats = memory.get_memory_stats()
-    print(f"\n📊 Stats: {stats}")
-
-    print("\n✅ Search memory system test complete!")
