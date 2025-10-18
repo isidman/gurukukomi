@@ -4,28 +4,66 @@ Search module for GRKKMAI
 
 import re
 import json
+import random
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from duckduckgo_search import DDGS
+
 
 class GRKKMAI_Search:
     def __init__(self):
         self.ddgs = DDGS()
         self.conversation_context = []
         self.fact_database = {}
+        self._pending_save = None  # ← ADDED: For consent flow
 
         self.knowledge_categories = {
             "general": ["what", "how", "why", "when", "where"],
             "technical": ["code", "programming", "software", "algorithm", "api"],
             "educational": ["learn", "study", "explain", "tutorial", "guide"],
-            "current_events": ["news","recent", "latest", "current", "today"],
+            "current_events": ["news", "recent", "latest", "current", "today"],
             "definition": ["define", "meaning", "what is", "what are"],
             "comparison": ["vs", "versus", "compare", "difference", "better"]
         }
 
-        print(" Advanced search system has been activated!")
+        print("✅ Advanced search system has been activated!")
+    
+    # ← ADDED: Method that ai_brain.py needs
+    def _should_use_advanced_search(self, message: str) -> bool:
+        """Check if user message requires web search"""
+        triggers = [
+            "what is", "who is", "explain", "how does", "why does",
+            "tell me about", "information about", "learn about",
+            "latest", "current", "recent", "news", "research"
+        ]
+        message_lower = message.lower()
+        return any(trigger in message_lower for trigger in triggers)
+    
+    # ← ADDED: Method for using saved research
+    def _generate_response_from_saved_research(self, query: str, saved_research: dict) -> str:
+        """Generate response using previously saved research"""
+        topic = saved_research.get("topic", "unknown topic")
+        summary = saved_research.get("summary", "")
+        sources = saved_research.get("sources", [])
+        access_count = saved_research.get("access_count", 0)
+        
+        response = f"💾 I found saved research about '{topic}' that I think answers your question!\n\n"
+        response += f"**From my previous research:**\n{summary}\n\n"
+        
+        if sources:
+            response += "**Sources (from previous search):**\n"
+            for i, source in enumerate(sources[:3], 1):
+                title = source.get("title", "Unknown")[:60]
+                url = source.get("url", "")
+                response += f"{i}. {title}\n   {url}\n"
+        
+        response += f"\n✨ *(This research has been accessed {access_count} times)*\n\n"
+        response += "Would you like me to search for more recent information, or does this help?"
+        
+        return response
     
     def analyze_question(self, user_message: str) -> Dict[str, Any]:
+        """Analyze user question to understand intent and complexity"""
         message_lower = user_message.lower()
 
         analysis = {
@@ -37,28 +75,29 @@ class GRKKMAI_Search:
             "key_concepts": []
         }
 
-        #intent
+        # Determine intent
         for category, keywords in self.knowledge_categories.items():
             if any(keyword in message_lower for keyword in keywords):
                 analysis["intent"] = category
                 break
         
-        #is search needed?
+        # Is search needed?
         search_indicators = [
-            "what is", "who is", "when did", "how does", "why does", "latest", "current", "recent", "news about", "information about", "explain", "tell me about", "research", "find out", "look up"
+            "what is", "who is", "when did", "how does", "why does", 
+            "latest", "current", "recent", "news about", "information about", 
+            "explain", "tell me about", "research", "find out", "look up"
         ]
 
         if any(indicator in message_lower for indicator in search_indicators):
             analysis["needs_search"] = True
             analysis["search_queries"] = self._generate_search_queries(user_message)
 
-        #how complex?
+        # How complex?
         complex_indicators = ["explain", "analyze", "compare", "detailed", "comprehensive", "advanced"]
         if any(indicator in message_lower for indicator in complex_indicators):
             analysis["complexity"] = "detailed"
-
         
-        #key concepts
+        # Key concepts
         analysis["key_concepts"] = self._extract_key_concepts(user_message)
 
         return analysis
@@ -67,39 +106,37 @@ class GRKKMAI_Search:
         """Generate multiple search queries from user message"""
         message_clean = user_message.lower()
 
-        #remove question words to get the core query
+        # Remove question words to get the core query
         for word in ["what is", "who is", "tell me about", "explain", "how does", "why does"]:
             message_clean = message_clean.replace(word, "").strip()
-            
         
         base_query = message_clean.strip()
-
         queries = [base_query]
 
-        #Add varietions for better coverage
+        # Add variations for better coverage
         if len(base_query) > 3:
             queries.append(f"{base_query} explanation")
             queries.append(f"{base_query} guide")
 
-        return queries [:6]
+        return queries[:3]  # Limit to 3 queries
     
     def _extract_key_concepts(self, text: str) -> List[str]:
-        #simple keyword extraction
+        """Extract key concepts from text"""
+        # Simple keyword extraction
         words = re.findall(r'\b\w+\b', text.lower())
 
-        #Filter out common words
+        # Filter out common words
         stop_words = {
             "the", "is", "at", "which", "on", "and", "a", "an", "as", "are", "was",
-            "werer", "been", "be", "have", "has", "had", "do", "does", "did", "will",
+            "were", "been", "be", "have", "has", "had", "do", "does", "did", "will",
             "would", "could", "should", "what", "how", "why", "when", "where", "who"
         }
 
         concepts = [word for word in words if len(word) > 3 and word not in stop_words]
-        return concepts[:6]
+        return concepts[:5]  # Top 5 concepts
     
-    def search_and_analyze(self, queries: List[str], max_results_per_query: int = 6) -> Dict[str, Any]:
-
-        #the main def happening
+    def search_and_analyze(self, queries: List[str], max_results_per_query: int = 3) -> Dict[str, Any]:
+        """Search web and analyze results"""
         all_results = []
 
         for query in queries:
@@ -116,7 +153,7 @@ class GRKKMAI_Search:
                 print(f"Search error for '{query}': {e}")
                 continue
 
-        #analyse and consolidate information
+        # Analyze and consolidate information
         analysis = {
             "total_sources": len(all_results),
             "key_information": self._extract_key_information(all_results),
@@ -127,21 +164,23 @@ class GRKKMAI_Search:
         return analysis
     
     def _extract_key_information(self, results: List[Dict]) -> List[str]:
+        """Extract key information from search results"""
         key_info = []
 
         for result in results:
             snippet = result.get("snippet", "")
             if snippet:
-                #extract "informative" sentences
+                # Extract "informative" sentences
                 sentences = snippet.split('. ')
                 for sentence in sentences:
-                    if len(sentence) > 30 and  any(word in sentence.lower() for word in ["is", "are", "can", "will", "provides", "offers", "includes"]):
+                    if len(sentence) > 30 and any(word in sentence.lower() for word in 
+                                                 ["is", "are", "can", "will", "provides", "offers", "includes"]):
                         key_info.append(sentence.strip())
 
-        return key_info[:10]
+        return key_info[:10]  # Top 10
     
     def _consolidate_facts(self, results: List[Dict]) -> Dict[str, List[str]]:
-
+        """Consolidate facts from multiple sources"""
         facts = {
             "definitions": [],
             "features": [],
@@ -153,65 +192,64 @@ class GRKKMAI_Search:
         for result in results:
             snippet = result.get("snippet", "").lower()
 
-            #definition lookup
+            # Definition lookup
             if any(word in snippet for word in ["is a", "refers to", "defined as", "means"]):
                 facts["definitions"].append(result.get("snippet", ""))
 
-            # characteristics lookup
+            # Characteristics lookup
             if any(word in snippet for word in ["includes", "features", "consists of", "contains"]):
                 facts["features"].append(result.get("snippet", ""))
 
-            #benefits lookup
+            # Benefits lookup
             if any(word in snippet for word in ["benefits", "advantages", "helps", "improves"]):
                 facts["benefits"].append(result.get("snippet", ""))
 
-            #example lookup
+            # Example lookup
             if any(word in snippet for word in ["example", "such as", "including", "like"]):
                 facts["examples"].append(result.get("snippet", ""))
 
-            #statistics/numbers lookup
+            # Statistics/numbers lookup
             if re.search(r'\d+%|\d+,\d+|\$\d+', snippet):
                 facts["statistics"].append(result.get("snippet", ""))
 
-        #category limit
+        # Category limit
         for key in facts:
-                facts[key] = facts[key][:6]
-            
+            facts[key] = facts[key][:3]
+        
         return facts
     
     def generate_intelligent_response(self, user_message: str, search_analysis: Optional[Dict] = None) -> str:
-        
+        """Generate intelligent, well-formatted response"""
         if not search_analysis:
             return self._generate_conversational_response(user_message)
         
         response_parts = []
         
         response_parts.append(self._generate_intro(user_message, search_analysis))
-
         response_parts.append(self._generate_main_content(search_analysis))
 
         if search_analysis.get("key_information"):
             response_parts.append(self._generate_key_points(search_analysis["key_information"]))
 
         response_parts.append(self._generate_sources_section(search_analysis.get("sources", [])))
-
         response_parts.append(self._generate_conclusion(user_message))
 
         return "\n\n".join(response_parts)
 
     def _generate_intro(self, user_message: str, search_analysis: Dict) -> str:
+        """Generate introduction"""
         source_count = search_analysis.get("total_sources", 0)
 
         intros = [
-            f"I searched the web and found information from {source_count} sources to help answer your question!",
-            f"Based on my search of {source_count} reliable sources, here's what I found:",
-            f"Let me share what I discovered from {source_count} sources about this topic:",
+            f"🔍 I searched the web and found information from {source_count} sources to help answer your question!",
+            f"📚 Based on my search of {source_count} reliable sources, here's what I found:",
+            f"✨ Let me share what I discovered from {source_count} sources about this topic:",
         ]
 
-        import random
         return random.choice(intros)
     
     def _generate_main_content(self, search_analysis: Dict) -> str:
+        """Generate main content from consolidated facts"""
         facts = search_analysis.get("consolidated_facts", {})
         content_parts = []
 
@@ -231,9 +269,9 @@ class GRKKMAI_Search:
                 content_parts.append(f"• {example[:150]}...")
 
         return "\n".join(content_parts) if content_parts else "Here's what I found from the search results:"
-    
 
-    def _generate_key_points(self, _extract_key_information: List[str]) -> str:
+    def _generate_key_points(self, key_information: List[str]) -> str:
+        """Generate key points summary"""
         if not key_information:
             return ""
         
@@ -243,14 +281,15 @@ class GRKKMAI_Search:
 
         return "\n".join(points)
     
-    def _generate_source_section(self, sources: List[Dict]) -> str:
+    def _generate_sources_section(self, sources: List[Dict]) -> str:
+        """Generate sources section"""
         if not sources:
             return ""
         
         sources_text = ["**Sources:**"]
-        unique_sources = []
+        unique_sources = {}
 
-        #remove duplicates by URL
+        # Remove duplicates by URL
         for source in sources:
             url = source.get("url", "")
             if url not in unique_sources:
@@ -258,50 +297,58 @@ class GRKKMAI_Search:
 
         for i, (url, source) in enumerate(list(unique_sources.items())[:5], 1):
             title = source.get("title", "Unknown")[:60]
-            sources_text.append(f"{i}. [{title}]({url})")
+            sources_text.append(f"{i}. {title}\n   {url}")
 
         return "\n".join(sources_text)
     
     def _generate_conclusion(self, user_message: str) -> str:
+        """Generate conclusion"""
         conclusions = [
             "Would you like me to search for more specific information about any of these points?",
             "Is there a particular aspect you'd like me to explore further?",
-            "let me know if you need clarification on any of these points!",
+            "Let me know if you need clarification on any of these points!",
             "I can dive deeper into any specific area that interests you the most."
         ]
 
-        import random
         return random.choice(conclusions)
     
     def _generate_conversational_response(self, user_message: str) -> str:
-        # responses for non-search queries
+        """Generate conversational response for non-search queries"""
         message_lower = user_message.lower()
 
         if any(greeting in message_lower for greeting in ["hello", "hi", "hey"]):
-            return "Hello! I'm here to help you find information and answer questions. What would you like to me to search about?"
+            return "Hello! I'm here to help you find information and answer questions. What would you like me to search about?"
         
         if "how are you" in message_lower:
-            return "I'm doing great! Ready to help your research and learn about anything you're curious about. What's on your mind?"
+            return "I'm doing great! Ready to help you research and learn about anything you're curious about. What's on your mind?"
         
         return "I'm not sure I have enough information to answer that well. Could you be more specific, or would you like me to search about it?"
     
     def process_query(self, user_message: str) -> str:
+        """Main method to process any user query"""
         # Analyze the question
         analysis = self.analyze_question(user_message)
 
-        #add to conversation context
+        # Add to conversation context
         self.conversation_context.append({
             "user_message": user_message,
             "analysis": analysis,
             "timestamp": datetime.now().isoformat()
         })
 
-        #if search is needed, do as comprehensive reasearch as you can
+        # If search is needed, do comprehensive research
         if analysis["needs_search"] and analysis["search_queries"]:
             search_results = self.search_and_analyze(analysis["search_queries"])
             response = self.generate_intelligent_response(user_message, search_results)
 
-            #store useful facts for future reference
+            # Store pending save for consent flow
+            self._pending_save = {
+                "query": user_message,
+                "results": search_results,
+                "topic": analysis["key_concepts"][0] if analysis["key_concepts"] else user_message[:30]
+            }
+
+            # Store useful facts for future reference
             self._store_learned_facts(analysis["key_concepts"], search_results)
         else:
             response = self.generate_intelligent_response(user_message)
@@ -309,6 +356,7 @@ class GRKKMAI_Search:
         return response
     
     def _store_learned_facts(self, concepts: List[str], search_results: Dict):
+        """Store learned facts for future use"""
         for concept in concepts:
             if concept not in self.fact_database:
                 self.fact_database[concept] = {
@@ -318,12 +366,12 @@ class GRKKMAI_Search:
                 }
 
             key_info = search_results.get("key_information", [])
-            for info in key_info [:3]:
+            for info in key_info[:3]:
                 if info not in self.fact_database[concept]["facts"]:
                     self.fact_database[concept]["facts"].append(info)
 
             sources = search_results.get("sources", [])
-            for source in sources [:2]:
+            for source in sources[:2]:
                 source_info = f"{source.get('title', '')} - {source.get('url', '')}"
                 if source_info not in self.fact_database[concept]["sources"]:
                     self.fact_database[concept]["sources"].append(source_info)
